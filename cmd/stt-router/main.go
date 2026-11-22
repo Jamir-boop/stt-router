@@ -27,12 +27,22 @@ func main() {
 	configPath := flag.String("config", config.DefaultPath(), "path to the JSON config file")
 	listen := flag.String("listen", "", "listen address, overrides the config (for example 127.0.0.1:8330)")
 	showVersion := flag.Bool("version", false, "print the version and exit")
+	flag.Usage = func() {
+		fmt.Fprint(flag.CommandLine.Output(), usage, "Options:\n")
+		flag.PrintDefaults()
+	}
 	flag.Parse()
 	if *showVersion {
 		fmt.Println("stt-router", version)
 		return
 	}
-	if err := run(*configPath, *listen); err != nil {
+	var err error
+	if cmd := flag.Arg(0); cmd == "" || cmd == "serve" {
+		err = run(*configPath, *listen)
+	} else {
+		err = cli(cmd, *configPath)
+	}
+	if err != nil {
 		fmt.Fprintln(os.Stderr, "stt-router:", err)
 		os.Exit(1)
 	}

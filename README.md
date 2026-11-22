@@ -95,6 +95,19 @@ console.log(r.text);
 
 `deploy/stt-router.service` is a systemd user unit. The install steps are in the file.
 
+## Commands
+
+```sh
+stt-router              # run the router
+stt-router dashboard    # open the dashboard and copy the management key to the clipboard
+stt-router status       # also: start, stop, restart (systemd user service, Linux)
+stt-router logs         # follow the service log (Linux)
+stt-router version
+stt-router help
+```
+
+`dashboard` needs `wl-copy`, `xclip` or `xsel` on Linux for the clipboard. It never prints the key. Options such as `-config` go before the command.
+
 ## Client API
 
 | Method and path | Description |
