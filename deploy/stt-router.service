@@ -1,0 +1,28 @@
+# systemd user unit for stt-router.
+# Install:
+#   install -Dm755 stt-router ~/.local/bin/stt-router
+#   install -Dm644 deploy/stt-router.service ~/.config/systemd/user/stt-router.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now stt-router
+[Unit]
+Description=stt-router speech-to-text account router
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/stt-router -config %h/.config/stt-router/config.json
+Restart=on-failure
+RestartSec=2s
+# Long enough for requests in flight to finish (the router waits up to 60 s).
+TimeoutStopSec=70s
+NoNewPrivileges=yes
+PrivateTmp=yes
+UMask=0077
+LockPersonality=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,42 @@
+{
+  "listen": "127.0.0.1:8330",
+  "management_key": "",
+  "client_keys": [
+    { "name": "laptop", "key": "sk-your-client-key-here" }
+  ],
+  "max_upload_mb": 1024,
+  "spool_memory_mb": 8,
+  "request_timeout": "10m",
+  "quota_cooldown": "1h",
+  "request_log_size": 500,
+  "providers": {
+    "groq": {
+      "type": "openai",
+      "base_url": "https://api.groq.com/openai/v1",
+      "accounts": [
+        { "name": "groq-1", "api_key": "gsk_your_key_here", "enabled": true, "max_file_mb": 25 },
+        { "name": "groq-2", "api_key": "env:GROQ_API_KEY_2", "enabled": true, "max_file_mb": 25, "max_concurrent": 2 }
+      ]
+    },
+    "elevenlabs": {
+      "type": "elevenlabs",
+      "base_url": "https://api.elevenlabs.io",
+      "accounts": [
+        { "name": "eleven-1", "api_key": "sk_your_elevenlabs_key_here", "enabled": true },
+        { "name": "eleven-2", "api_key": "sk_your_second_elevenlabs_key", "enabled": true, "weight": 2 }
+      ]
+    }
+  },
+  "models": {
+    "whisper-large-v3-turbo": [
+      { "provider": "groq", "model": "whisper-large-v3-turbo" }
+    ],
+    "auto": [
+      { "provider": "groq", "model": "whisper-large-v3-turbo" },
+      { "provider": "elevenlabs", "model": "scribe_v3" }
+    ],
+    "scribe_v3": [
+      { "provider": "elevenlabs", "model": "scribe_v3" }
+    ]
+  }
+}
