@@ -1,0 +1,12 @@
+# Built binaries
+/stt-router
+/stt-router.exe
+/dist/
+
+# Runtime config, state and logs
+/config.json
+state.json
+*.log
+
+# Go caches used by the Docker targets
+/.cache/
