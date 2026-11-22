@@ -231,9 +231,11 @@ func (s *Server) transport(group string) *http.Transport {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: timeout, // the upstream sends headers only after it has transcribed
 			ExpectContinueTimeout: time.Second,
-			IdleConnTimeout:       90 * time.Second,
-			MaxIdleConnsPerHost:   16,
-			WriteBufferSize:       256 << 10, // the 4 KB default costs a syscall per 4 KB of upload
+			// Dictation sends a request every few minutes; a warm connection saves the TLS handshake each time.
+			IdleConnTimeout:     15 * time.Minute,
+			HTTP2:               &http.HTTP2Config{SendPingTimeout: 30 * time.Second, PingTimeout: 15 * time.Second},
+			MaxIdleConnsPerHost: 16,
+			WriteBufferSize:     256 << 10, // the 4 KB default costs a syscall per 4 KB of upload
 		}
 		s.transports[group] = t
 	}
