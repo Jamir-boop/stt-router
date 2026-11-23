@@ -3,114 +3,145 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light dark">
+<meta name="color-scheme" content="dark">
 <title>stt-router</title>
 <link rel="icon" href="data:,">
 <style>
 :root {
-  --bg: #f6f7f9; --panel: #ffffff; --panel-2: #f0f2f5; --border: #d9dde3; --text: #1b1f24;
-  --muted: #5a6270; --accent: #1f5fd1; --accent-text: #ffffff; --ok: #146c2e; --ok-bg: #dcf3e3;
-  --warn: #8a5a00; --warn-bg: #fdf0d2; --bad: #b3261e; --bad-bg: #fbe0de; --off: #4b5361; --off-bg: #e6e8ec;
-  --focus: #1f5fd1; --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  color-scheme: dark;
+  /* Warm Charcoal profile: a dark-only theme, so there is no light variant. */
+  --bg: #1C1A18; --surface: #24211E; --field: #171513; --interaction: #36312C;
+  --text: #E9E4DC; --muted: #B7AEA3; --disabled: #555555; --border: #423B34; --control: #8C8175;
+  --reference: #A8C0DC; --accent: #D8B56B; --error: #EB8C88; --success: #93C9AD;
+  --selection: #FFBA30; --selection-ink: #111113; --action-ink: #111113;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --border: #2c333d; --text: #e6e9ee;
-    --muted: #9aa3b1; --accent: #6ea2ff; --accent-text: #0b1220; --ok: #7fd99a; --ok-bg: #173323;
-    --warn: #f2c46b; --warn-bg: #3a2d10; --bad: #ff9b93; --bad-bg: #3d1c1a; --off: #b4bcc8; --off-bg: #2a3039;
-    --focus: #6ea2ff; --shadow: none;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #0f1216; --panel: #171b21; --panel-2: #1e232b; --border: #2c333d; --text: #e6e9ee;
-  --muted: #9aa3b1; --accent: #6ea2ff; --accent-text: #0b1220; --ok: #7fd99a; --ok-bg: #173323;
-  --warn: #f2c46b; --warn-bg: #3a2d10; --bad: #ff9b93; --bad-bg: #3d1c1a; --off: #b4bcc8; --off-bg: #2a3039;
-  --focus: #6ea2ff; --shadow: none;
-}
-:root[data-theme="light"] { color-scheme: light; }
-:root[data-theme="dark"] { color-scheme: dark; }
 * { box-sizing: border-box; }
 html { font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
 body { margin: 0; }
-a { color: var(--accent); }
+a { color: var(--reference); }
+::selection { background: var(--selection); color: var(--selection-ink); }
 h1 { font-size: 16px; margin: 0; letter-spacing: .01em; }
 h2 { font-size: 14px; margin: 0; }
 h3 { font-size: 13px; margin: 0; font-weight: 600; }
-:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .skip { position: absolute; left: -9999px; }
-.skip:focus { left: 8px; top: 8px; background: var(--panel); padding: 6px 10px; z-index: 10; }
-header.top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
+.skip:focus { left: 8px; top: 8px; background: var(--surface); padding: 6px 10px; z-index: 10; }
+header.top { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
 header.top .meta { color: var(--muted); font-size: 12px; font-family: var(--mono); }
 header.top .spacer { flex: 1; }
 main { padding: 16px; max-width: 1500px; margin: 0 auto; display: grid; gap: 16px; }
-section.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); min-width: 0; }
+section.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; min-width: 0; }
 .panel-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .panel-head .spacer { flex: 1; }
 .panel-body { padding: 12px; }
 .sub { color: var(--muted); font-size: 12px; font-family: var(--mono); overflow-wrap: anywhere; }
-button, .btn { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel-2); color: var(--text); cursor: pointer; line-height: 1.4; }
-button:hover { border-color: var(--muted); }
-button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
-button.danger { color: var(--bad); }
+button { font: inherit; font-size: 13px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--control); background: var(--surface); color: var(--text); cursor: pointer; line-height: 1.4; }
+button:hover { background: var(--interaction); }
+button:active { border-color: var(--text); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--action-ink); font-weight: 600; }
+button.primary:hover { box-shadow: inset 0 0 0 1px var(--action-ink); }
+button.danger { color: var(--error); }
 button.small { font-size: 12px; padding: 2px 8px; }
-button:disabled { opacity: .55; cursor: default; }
-input, select, textarea { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--panel); color: var(--text); min-width: 0; }
+button:disabled, button:disabled:hover { color: var(--disabled); border-color: var(--border); background: var(--surface); box-shadow: none; cursor: default; }
+input, select, textarea { font: inherit; font-size: 13px; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--control); background: var(--field); color: var(--text); min-width: 0; }
+::placeholder { color: var(--muted); opacity: 1; }
+input[aria-invalid="true"] { border-color: var(--error); }
 label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
 label.check { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 13px; }
 .totals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border-radius: 0 0 8px 8px; overflow: hidden; }
-.stat { background: var(--panel); padding: 10px 12px; }
+.stat { background: var(--surface); padding: 10px 12px; }
 .stat .k { color: var(--muted); font-size: 12px; }
 .stat .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .stat .v small { font-size: 12px; color: var(--muted); font-weight: 400; }
 .table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; white-space: nowrap; }
-th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--panel-2); position: sticky; top: 0; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: var(--bg); position: sticky; top: 0; }
 td.num, th.num { text-align: right; }
 td.wrap { white-space: normal; min-width: 180px; max-width: 420px; overflow-wrap: anywhere; }
 td.clip { max-width: 360px; overflow: hidden; text-overflow: ellipsis; }
-tbody tr:hover { background: var(--panel-2); }
+tbody tr:hover { background: var(--interaction); }
 tbody tr:last-child td { border-bottom: 0; }
 .mono { font-family: var(--mono); font-size: 12px; }
 .muted { color: var(--muted); }
-.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; }
-.b-ready { color: var(--ok); background: var(--ok-bg); }
-.b-cooldown { color: var(--warn); background: var(--warn-bg); }
-.b-invalid { color: var(--bad); background: var(--bad-bg); }
-.b-disabled { color: var(--off); background: var(--off-bg); }
+.badge { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid currentColor; white-space: nowrap; }
+.b-ready { color: var(--success); }
+.b-cooldown { color: var(--accent); }
+.b-invalid { color: var(--error); }
+.b-disabled { color: var(--muted); border-style: dashed; }
 .actions { display: flex; gap: 4px; flex-wrap: nowrap; }
 .group + .group { border-top: 1px solid var(--border); }
 .group-head { display: flex; align-items: baseline; gap: 10px; padding: 10px 12px; flex-wrap: wrap; }
 .group-head .spacer { flex: 1; }
 .empty { padding: 12px; color: var(--muted); }
 .chain { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.chain .t { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--panel-2); }
+.chain .t { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--field); }
 .chain .arrow { color: var(--muted); }
 .filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.st-ok { color: var(--ok); font-weight: 600; }
-.st-err { color: var(--bad); font-weight: 600; }
-dialog { border: 1px solid var(--border); border-radius: 10px; background: var(--panel); color: var(--text); padding: 0; width: min(520px, calc(100vw - 24px)); }
-dialog::backdrop { background: rgba(0, 0, 0, .45); }
+.st-ok { color: var(--success); font-weight: 600; }
+.st-err { color: var(--error); font-weight: 600; }
+dialog { border: 1px solid var(--control); border-radius: 10px; background: var(--surface); color: var(--text); padding: 0; width: min(520px, calc(100vw - 24px)); }
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
 dialog form { display: grid; gap: 12px; padding: 16px; }
 dialog .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 dialog .foot { display: flex; justify-content: flex-end; gap: 8px; }
-dialog .err { color: var(--bad); font-size: 13px; min-height: 1em; }
+dialog .err { color: var(--error); font-size: 13px; min-height: 1em; }
 .target-row { display: grid; grid-template-columns: 1fr 1.4fr auto auto auto; gap: 6px; align-items: center; }
 .login { max-width: 380px; margin: 12vh auto; }
 .login form { display: grid; gap: 12px; padding: 16px; }
 #toast { position: fixed; right: 16px; bottom: 16px; display: grid; gap: 8px; z-index: 20; max-width: min(460px, calc(100vw - 32px)); }
-.toast { background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--accent); padding: 8px 12px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, .18); overflow-wrap: anywhere; }
-.toast.bad { border-left-color: var(--bad); }
-.toast.ok { border-left-color: var(--ok); }
-.secret { font-family: var(--mono); font-size: 12px; padding: 8px; background: var(--panel-2); border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
+.toast { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); padding: 8px 12px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0, 0, 0, .45); overflow-wrap: anywhere; }
+.toast.bad { border-left-color: var(--error); }
+.toast.ok { border-left-color: var(--success); }
+.secret { font-family: var(--mono); font-size: 12px; padding: 8px; background: var(--field); border-radius: 6px; user-select: all; overflow-wrap: anywhere; }
+.flow { position: relative; display: grid; gap: 10px; }
+.flow::before { content: ""; position: absolute; left: 11px; top: 12px; bottom: 12px; border-left: 1px solid var(--border); }
+.flow-end { position: relative; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding-left: 4px; min-height: 24px; }
+.dot { width: 15px; height: 15px; border-radius: 50%; border: 2px solid var(--control); background: var(--surface); flex: none; }
+.dot.on { background: var(--accent); border-color: var(--accent); }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.step { position: relative; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px 10px; }
+.step.next { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.step.dead { border-style: dashed; }
+.step.dead h3, .step.dead .card-name { color: var(--muted); }
+.step.dragging { outline: 2px dashed var(--accent); outline-offset: 2px; }
+.step-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
+.step-head .spacer { flex: 1; }
+.num { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--control); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; flex: none; }
+.step.next .num { background: var(--accent); border-color: var(--accent); color: var(--action-ink); }
+.handle { width: 24px; height: 28px; padding: 0; border-color: transparent; background: transparent; color: var(--muted); cursor: grab; display: inline-grid; place-items: center; flex: none; }
+.handle::before { content: ""; width: 8px; height: 14px; background: radial-gradient(circle, currentColor 1.1px, transparent 1.5px) 0 0 / 4px 4px; }
+.handle:hover { color: var(--text); }
+.tag { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--accent); }
+.reason { font-size: 12px; color: var(--muted); }
+.cards { list-style: none; margin: 8px 0 0; padding: 0 0 0 32px; display: flex; flex-wrap: wrap; gap: 8px; }
+.card { display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--field); min-width: 0; max-width: 100%; }
+.card.pick { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.step.dead .card { border-style: dashed; }
+.card-main { min-width: 0; display: grid; gap: 1px; }
+.card-name { font-weight: 600; display: flex; gap: 8px; align-items: baseline; overflow-wrap: anywhere; }
+.initial { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; background: var(--interaction); font-size: 12px; font-weight: 700; flex: none; }
+.limits { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.limits span { white-space: nowrap; }
+.limits span + span::before { content: "· "; }
+.menu-wrap { position: relative; flex: none; }
+.menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 6; min-width: 170px; display: grid; padding: 4px; background: var(--surface); border: 1px solid var(--control); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, .45); }
+.menu[hidden] { display: none; }
+.menu button, .menu button:disabled { border: 0; background: transparent; text-align: left; padding: 6px 10px; border-radius: 4px; }
+.menu button:not(:disabled):hover, .menu button:focus-visible { background: var(--interaction); }
+.flow-foot { margin-top: 12px; padding-left: 32px; }
+.note { margin: 10px 0 0; color: var(--muted); font-size: 12px; max-width: 80ch; padding-left: 32px; }
 @media (max-width: 700px) {
   main { padding: 8px; }
+  .cards, .flow-foot, .note { padding-left: 0; }
+  .card { flex: 1 1 100%; flex-wrap: wrap; }
+  .card-main { flex: 1 1 9em; }
   .totals { grid-template-columns: repeat(2, 1fr); }
   dialog .row { grid-template-columns: 1fr; }
   .target-row { grid-template-columns: 1fr 1fr; }
 }
-@media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s; } }
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .12s, background-color .12s; } }
 </style>
 </head>
 <body>
@@ -135,13 +166,6 @@ dialog .err { color: var(--bad); font-size: 13px; min-height: 1em; }
     <h1>stt-router</h1>
     <span class="meta" id="meta"></span>
     <span class="spacer"></span>
-    <label class="check" for="theme">Theme
-      <select id="theme">
-        <option value="system">System</option>
-        <option value="light">Light</option>
-        <option value="dark">Dark</option>
-      </select>
-    </label>
     <button type="button" id="refresh">Refresh</button>
     <button type="button" id="logout">Sign out</button>
   </header>
@@ -149,6 +173,18 @@ dialog .err { color: var(--bad); font-size: 13px; min-height: 1em; }
     <section class="panel" aria-labelledby="h-totals">
       <div class="panel-head"><h2 id="h-totals">Totals</h2><span class="spacer"></span><span class="sub" id="updated"></span></div>
       <div class="totals" id="totals"></div>
+    </section>
+
+    <section class="panel" aria-labelledby="h-routing">
+      <div class="panel-head">
+        <h2 id="h-routing">Routing</h2><span class="spacer"></span>
+        <label class="check" for="route-model">Model <select id="route-model"></select></label>
+      </div>
+      <div class="panel-body">
+        <div class="flow" id="routing-flow"></div>
+        <div class="flow-foot"><button type="button" id="add-step">Add step</button></div>
+        <p class="note">The preview assumes a small upload with no timestamp format, so it ignores <code>max_file_mb</code> and <code>plain_json</code>. Busy accounts (<code>max_concurrent</code>) count only as they were at the last refresh. Accounts in one step share the load: the router takes the least recently used one (by weight). It does not try them in a fixed order.</p>
+      </div>
     </section>
 
     <section class="panel" aria-labelledby="h-accounts">
@@ -254,6 +290,18 @@ dialog .err { color: var(--bad); font-size: 13px; min-height: 1em; }
   </form>
 </dialog>
 
+<dialog id="step-dlg" aria-labelledby="step-title">
+  <form method="dialog" id="step-form">
+    <h2 id="step-title">Add step</h2>
+    <div class="row">
+      <label for="s-provider">Provider group <select id="s-provider" required></select></label>
+      <label for="s-model">Upstream model <input id="s-model" required autocomplete="off" placeholder="upstream model"></label>
+    </div>
+    <div class="err" id="s-err" role="alert"></div>
+    <div class="foot"><button type="button" data-close>Cancel</button><button class="primary" type="submit">Add</button></div>
+  </form>
+</dialog>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <script>
@@ -319,15 +367,6 @@ function time(iso) {
   return sameDay ? d.toLocaleTimeString() : d.toLocaleString();
 }
 
-// Theme
-function applyTheme(v) {
-  if (v === "system") document.documentElement.removeAttribute("data-theme");
-  else document.documentElement.setAttribute("data-theme", v);
-}
-$("theme").value = localStorage.getItem("stt-router-theme") || "system";
-applyTheme($("theme").value);
-$("theme").addEventListener("change", (e) => { localStorage.setItem("stt-router-theme", e.target.value); applyTheme(e.target.value); });
-
 // Login
 function showLogin(msg) {
   sessionStorage.removeItem(KEY);
@@ -366,6 +405,7 @@ function render() {
   // A rebuild would drop keyboard focus, so a table that holds focus waits for the next refresh.
   const focused = (id) => $(id).contains(document.activeElement);
   renderTotals();
+  renderRouting();
   if (!focused("groups")) renderGroups();
   if (!focused("models")) renderModels();
   if (!focused("keys")) renderKeys();
@@ -416,7 +456,7 @@ function renderGroups() {
       el("td", {}, el("div", { class: "actions" },
         el("button", { type: "button", class: "small", onclick: () => openAccount(g.name, a), "aria-label": "Edit " + a.name }, "Edit"),
         el("button", { type: "button", class: "small", onclick: () => toggle(g.name, a) }, a.enabled ? "Disable" : "Enable"),
-        el("button", { type: "button", class: "small", onclick: () => act("POST", acctPath(g.name, a.name) + "/reset", "Cooldown reset for " + a.name), disabled: a.state !== "cooldown" && a.state !== "invalid" }, "Reset"),
+        el("button", { type: "button", class: "small", onclick: () => resetAccount(g.name, a), disabled: !resettable(a) }, "Reset"),
         el("button", { type: "button", class: "small", onclick: (e) => testAccount(e.target, g.name, a.name) }, "Test"),
         el("button", { type: "button", class: "small danger", onclick: () => confirmDelete("account " + a.name, acctPath(g.name, a.name)) }, "Delete")))));
     const table = g.accounts.length
@@ -435,10 +475,13 @@ async function act(method, path, okMsg, body) {
   try { await api(method, path, body); if (okMsg) toast(okMsg, "ok"); await load(); }
   catch (e) { if (e.message !== "unauthorized") toast(e.message, "bad"); }
 }
+const resettable = (a) => a.state === "cooldown" || a.state === "invalid";
+function resetAccount(g, a) { act("POST", acctPath(g, a.name) + "/reset", "Cooldown reset for " + a.name); }
 function toggle(g, a) { act("PUT", acctPath(g, a.name), (a.enabled ? "Disabled " : "Enabled ") + a.name, { enabled: !a.enabled }); }
 function confirmDelete(what, path) { if (confirm("Delete " + what + "? This changes the config file.")) act("DELETE", path, "Deleted " + what); }
 
 async function testAccount(btn, g, n) {
+  const label = btn.textContent;
   btn.disabled = true; btn.textContent = "Testing...";
   try {
     const r = await api("POST", acctPath(g, n) + "/test");
@@ -446,7 +489,7 @@ async function testAccount(btn, g, n) {
     else toast(n + ": " + r.result + ", " + r.error, "bad");
     await load();
   } catch (e) { if (e.message !== "unauthorized") toast(e.message, "bad"); }
-  finally { btn.disabled = false; btn.textContent = "Test"; }
+  finally { btn.disabled = false; btn.textContent = label; }
 }
 
 // Dialogs
@@ -552,6 +595,210 @@ $("key-form").addEventListener("submit", async (e) => {
   } catch (err) { $("k-err").textContent = err.message; }
 });
 $("key-dlg").addEventListener("close", () => { $("k-secret").textContent = ""; });
+
+// Routing
+const ROUTE_KEY = "stt-router-route-model";
+let openMenu = null, dragStep = null, routeSaving = false;
+
+function closeMenu(refocus) {
+  if (!openMenu) return;
+  const { trigger, list } = openMenu;
+  list.hidden = true; trigger.setAttribute("aria-expanded", "false");
+  openMenu = null;
+  if (refocus) trigger.focus();
+}
+// menu builds a "..." button with a popup of actions; run gets the trigger button.
+function menu(label, items, fk) {
+  const trigger = el("button", { type: "button", class: "small", "aria-label": label, "aria-haspopup": "menu", "aria-expanded": "false", "data-fk": fk }, "...");
+  const list = el("div", { class: "menu", role: "menu", "aria-label": label, hidden: true },
+    items.map((it) => el("button", { type: "button", role: "menuitem", tabindex: "-1", disabled: it.disabled, title: it.title,
+      onclick: () => { closeMenu(true); it.run(trigger); } }, it.text)));
+  trigger.addEventListener("click", () => {
+    const wasOpen = openMenu && openMenu.trigger === trigger;
+    closeMenu(false);
+    if (wasOpen) return;
+    list.hidden = false; trigger.setAttribute("aria-expanded", "true");
+    openMenu = { trigger, list };
+    const first = list.querySelector("button:not(:disabled)");
+    if (first) first.focus();
+  });
+  list.addEventListener("keydown", (e) => {
+    const btns = [...list.querySelectorAll("button:not(:disabled)")];
+    const i = btns.indexOf(document.activeElement);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      btns[(i + (e.key === "ArrowDown" ? 1 : btns.length - 1)) % btns.length].focus();
+    } else if (e.key === "Escape") { e.preventDefault(); closeMenu(true); }
+    else if (e.key === "Tab") closeMenu(false);
+  });
+  return el("div", { class: "menu-wrap" }, trigger, list);
+}
+document.addEventListener("click", (e) => { if (openMenu && !openMenu.trigger.parentNode.contains(e.target)) closeMenu(false); });
+
+function routeModel() {
+  const names = state.models.map((m) => m.name);
+  let v = sessionStorage.getItem(ROUTE_KEY);
+  if (!names.includes(v)) v = names.includes("auto") ? "auto" : names[0];
+  return state.models.find((m) => m.name === v) || null;
+}
+
+function renderRouting(focusFk) {
+  const sel = $("route-model"), names = state.models.map((m) => m.name), m = routeModel();
+  if ([...sel.options].map((o) => o.value).join("\n") !== names.join("\n")) sel.replaceChildren(...names.map((n) => el("option", { value: n }, n)));
+  sel.value = m ? m.name : "";
+  sel.disabled = !m; $("add-step").disabled = !m;
+  // A rebuild would end a drag, close a menu, or show the old order during a save.
+  if (openMenu || dragStep || routeSaving) return;
+  const flow = $("routing-flow");
+  if (!focusFk && flow.contains(document.activeElement)) focusFk = document.activeElement.dataset.fk;
+  flow.replaceChildren(...buildFlow(m));
+  const f = focusFk && flow.querySelector('[data-fk="' + CSS.escape(focusFk) + '"]');
+  if (f) f.focus();
+}
+$("route-model").addEventListener("change", (e) => { sessionStorage.setItem(ROUTE_KEY, e.target.value); renderRouting(); });
+
+function buildFlow(m) {
+  if (!m) return [el("div", { class: "empty" }, "No models. Add one in the Models panel.")];
+  const groups = new Map(state.providers.map((p) => [p.name, p]));
+  const nextIdx = m.targets.findIndex((t) => groups.get(t.provider) && groups.get(t.provider).next);
+  const anyEnabled = m.targets.some((t) => groups.has(t.provider) && groups.get(t.provider).accounts.some((a) => a.enabled));
+  const steps = el("ol", { class: "steps", "aria-label": "Steps for " + m.name + ", tried in order" });
+  steps.addEventListener("dragover", (e) => {
+    if (!dragStep || dragStep.parentNode !== steps) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    const before = [...steps.children].find((c) => c !== dragStep && e.clientY < c.getBoundingClientRect().top + c.offsetHeight / 2);
+    if (before) { if (dragStep.nextSibling !== before) steps.insertBefore(dragStep, before); }
+    else if (steps.lastChild !== dragStep) steps.append(dragStep);
+  });
+  steps.addEventListener("drop", (e) => e.preventDefault());
+  m.targets.forEach((t, i) => steps.append(stepNode(m, t, i, groups.get(t.provider), i === nextIdx)));
+  return [
+    el("div", { class: "flow-end" }, el("span", { class: "dot on", "aria-hidden": "true" }), el("strong", {}, "Request in")),
+    steps,
+    el("div", { class: "flow-end" }, el("span", { class: "dot", "aria-hidden": "true" }), el("strong", {}, "All unavailable"),
+      el("span", { class: "muted" }, anyEnabled ? "Returns 429 with Retry-After" : "Returns 503: no enabled account")),
+  ];
+}
+
+function deadReason(p) {
+  if (!p) return "unknown provider group";
+  if (!p.accounts.length) return "no accounts";
+  const words = { disabled: "disabled", cooldown: "cooling", invalid: "invalid", ready: "busy" }, n = {};
+  for (const a of p.accounts) n[a.state] = (n[a.state] || 0) + 1;
+  const keys = Object.keys(n);
+  if (keys.length === 1) return "all " + words[keys[0]];
+  return "none usable: " + keys.map((k) => n[k] + " " + words[k]).join(", ");
+}
+
+function stepNode(m, t, i, p, isNext) {
+  const n = m.targets.length, dead = !p || !p.next;
+  const li = el("li", { class: "step" + (isNext ? " next" : "") + (dead ? " dead" : ""), "data-i": i });
+  const handle = el("button", { type: "button", class: "handle", "data-fk": "s" + i + "-h",
+    "aria-label": "Reorder step " + (i + 1) + ", " + t.provider + ". Arrow Up and Arrow Down move it." });
+  handle.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowUp" && i > 0) { e.preventDefault(); moveStep(m, i, i - 1, "h"); }
+    else if (e.key === "ArrowDown" && i < n - 1) { e.preventDefault(); moveStep(m, i, i + 1, "h"); }
+  });
+  // Only the handle starts a drag, so text in the step stays selectable.
+  handle.addEventListener("pointerdown", () => { li.draggable = true; });
+  handle.addEventListener("pointerup", () => { li.draggable = false; });
+  li.addEventListener("dragstart", (e) => {
+    if (!li.draggable) { e.preventDefault(); return; }
+    closeMenu(false);
+    dragStep = li; li.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", t.provider);
+  });
+  li.addEventListener("dragend", (e) => {
+    li.draggable = false; li.classList.remove("dragging"); dragStep = null;
+    const order = [...li.parentNode.children].map((c) => +c.dataset.i), to = order.indexOf(i);
+    if (e.dataTransfer.dropEffect === "none" || order.every((v, k) => v === k)) { renderRouting(); return; }
+    saveTargets(m, order.map((k) => m.targets[k]), "Moved " + t.provider + " to step " + (to + 1), "s" + to + "-h");
+  });
+  const accounts = p ? p.accounts : [];
+  li.append(
+    el("div", { class: "step-head" }, handle,
+      el("span", { class: "num", "aria-hidden": "true" }, i + 1),
+      el("h3", {}, i ? "Fallback " + i : "Preferred"),
+      el("span", { class: "sub" }, t.provider + " · " + t.model + " · " + (p ? p.type : "unknown")),
+      isNext ? el("span", { class: "tag" }, "next") : null,
+      dead ? el("span", { class: "reason" }, deadReason(p)) : null,
+      el("span", { class: "spacer" }),
+      menu("Step " + (i + 1) + " actions", [
+        { text: "Move up", disabled: i === 0, run: () => moveStep(m, i, i - 1, "m") },
+        { text: "Move down", disabled: i === n - 1, run: () => moveStep(m, i, i + 1, "m") },
+        { text: "Remove step", disabled: n === 1, title: n === 1 ? "A model needs at least one step" : null, run: () => removeStep(m, i) },
+      ], "s" + i + "-m")),
+    accounts.length ? el("ul", { class: "cards", "aria-label": "Accounts in " + t.provider },
+      accounts.map((a) => accountCard(i, p, a, isNext && a.name === p.next))) : null);
+  return li;
+}
+
+function accountCard(i, g, a, isPick) {
+  const limits = [a.max_file_mb ? "max " + a.max_file_mb + " MB" : null, a.max_concurrent ? a.max_concurrent + " at once" : null, a.plain_json ? "json only" : null].filter(Boolean);
+  return el("li", { class: "card" + (isPick ? " pick" : "") },
+    el("span", { class: "initial", "aria-hidden": "true" }, (a.name[0] || "?").toUpperCase()),
+    el("div", { class: "card-main" },
+      el("div", { class: "card-name" }, a.name, isPick ? el("span", { class: "tag" }, "next") : null),
+      el("div", { class: "sub" }, a.key_masked + (a.weight !== 1 ? " · weight " + a.weight : "")),
+      limits.length ? el("div", { class: "limits" }, limits.map((l) => el("span", {}, l))) : null),
+    stateBadge(a),
+    menu("Actions for " + a.name, [
+      { text: a.enabled ? "Disable" : "Enable", run: () => toggle(g.name, a) },
+      { text: "Reset cooldown", disabled: !resettable(a), run: () => resetAccount(g.name, a) },
+      { text: "Test", run: (btn) => testAccount(btn, g.name, a.name) },
+      { text: "Edit", run: () => openAccount(g.name, a) },
+    ], "s" + i + "-a-" + a.name));
+}
+
+function moveStep(m, from, to, focus) {
+  const targets = m.targets.slice(), [t] = targets.splice(from, 1);
+  targets.splice(to, 0, t);
+  saveTargets(m, targets, "Moved " + t.provider + " to step " + (to + 1), "s" + to + "-" + focus);
+}
+
+function removeStep(m, i) {
+  const t = m.targets[i];
+  if (m.targets.length < 2) { toast("A model needs at least one step.", "bad"); return; }
+  if (!confirm("Remove step " + (i + 1) + " (" + t.provider + " · " + t.model + ") from " + m.name + "? This changes the config file.")) return;
+  saveTargets(m, m.targets.filter((_, k) => k !== i), "Removed " + t.provider + " from " + m.name, "s" + Math.max(0, i - 1) + "-m");
+}
+
+// saveTargets shows the new order at once and restores the old one if the save fails.
+async function saveTargets(m, targets, okMsg, focusFk) {
+  const old = m.targets, flow = $("routing-flow");
+  const oldFk = flow.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+  m.targets = targets;
+  renderRouting(focusFk);
+  routeSaving = true;
+  try {
+    await api("PUT", "/api/models/" + encodeURIComponent(m.name), { targets });
+    toast(okMsg + ".", "ok");
+  } catch (e) {
+    m.targets = old;
+    routeSaving = false;
+    renderRouting(oldFk);
+    if (e.message !== "unauthorized") toast("Not saved: " + e.message, "bad");
+  } finally { routeSaving = false; }
+  render();
+  load().catch(() => {});
+}
+
+$("add-step").addEventListener("click", () => {
+  const m = routeModel();
+  if (!m) return;
+  $("step-title").textContent = "Add step to " + m.name;
+  $("s-provider").replaceChildren(...state.providers.map((p) => el("option", { value: p.name }, p.name + " (" + p.type + ")")));
+  $("s-model").value = ""; $("s-err").textContent = "";
+  $("step-dlg").showModal();
+});
+$("step-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const m = routeModel(), targets = [...m.targets, { provider: $("s-provider").value, model: $("s-model").value.trim() }];
+  try {
+    await api("PUT", "/api/models/" + encodeURIComponent(m.name), { targets });
+    $("step-dlg").close(); toast("Added step " + targets.length + " to " + m.name, "ok"); await load();
+  } catch (err) { $("s-err").textContent = err.message; }
+});
 
 // Log
 function renderLog() {

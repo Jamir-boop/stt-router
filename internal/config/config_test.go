@@ -153,3 +153,28 @@ func TestIsLoopback(t *testing.T) {
 		}
 	}
 }
+
+func TestFrameAncestors(t *testing.T) {
+	load := func(origin string) error {
+		path := filepath.Join(t.TempDir(), "c.json")
+		if err := os.WriteFile(path, []byte(`{"frame_ancestors":["`+origin+`"]}`), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, _, err := Load(path)
+		return err
+	}
+	for _, o := range []string{"http://127.0.0.1:8790", "https://dash.example.com", "http://localhost"} {
+		if err := load(o); err != nil {
+			t.Errorf("%q: %v", o, err)
+		}
+	}
+	for _, o := range []string{
+		"", "127.0.0.1:8790", "ftp://a", "http://", "http://a/", "http://a/path", "http://a?x=1", "http://a#f",
+		"http://*.example.com", "*", "'self'", "http://u@a", "http://a:port", "HTTP://a", "http://a b", "http://a;b",
+		"http://a:", "http://a:0", "http://a:70000", "http://[::1]:8790",
+	} {
+		if err := load(o); err == nil || !strings.Contains(err.Error(), "frame_ancestors[0]") {
+			t.Errorf("%q: err = %v, want a frame_ancestors error", o, err)
+		}
+	}
+}

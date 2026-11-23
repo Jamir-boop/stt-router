@@ -121,7 +121,11 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+		ancestors := "'none'"
+		if fa := s.cfg.Load().FrameAncestors; len(fa) > 0 {
+			ancestors = strings.Join(fa, " ")
+		}
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors "+ancestors)
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		w.Write(dashboardHTML)

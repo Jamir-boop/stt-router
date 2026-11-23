@@ -121,6 +121,7 @@ type providerView struct {
 	Type     string        `json:"type"`
 	BaseURL  string        `json:"base_url"`
 	Accounts []accountView `json:"accounts"`
+	Next     string        `json:"next"` // the account pick would choose now for a small upload; empty when none is usable
 }
 
 func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) error {
@@ -152,6 +153,9 @@ func (s *Server) apiStatus(w http.ResponseWriter, r *http.Request) error {
 				v.State, v.CooldownUntil = "cooldown", st.CooldownUntil
 			}
 			pv.Accounts = append(pv.Accounts, v)
+		}
+		if a, _, _ := s.choose(name, p, 0, false, nil, &skips{}); a != nil {
+			pv.Next = a.Name
 		}
 		providers = append(providers, pv)
 	}

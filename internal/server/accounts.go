@@ -108,12 +108,11 @@ func (k *skips) cooldown(t time.Time) {
 	}
 }
 
-// pick chooses the usable account with the lowest weighted virtual time;
-// with equal weights that is the least recently used one. It reserves a
-// concurrency slot, which release frees.
-func (s *Server) pick(group string, p *config.Provider, size int64, needTS bool, tried map[string]bool, sk *skips) *config.Account {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+// choose returns the usable account with the lowest weighted virtual time;
+// with equal weights that is the least recently used one. It changes no
+// routing state, so the dashboard preview can share the rule with pick.
+// Call with s.mu held.
+func (s *Server) choose(group string, p *config.Provider, size int64, needTS bool, tried map[string]bool, sk *skips) (*config.Account, *account, float64) {
 	now := s.now()
 	clock := s.clocks[group]
 	var best *config.Account
@@ -145,6 +144,15 @@ func (s *Server) pick(group string, p *config.Provider, size int64, needTS bool,
 			best, bestState, bestVT = cfgA, a, vt
 		}
 	}
+	return best, bestState, bestVT
+}
+
+// pick chooses an account with choose and reserves a concurrency slot,
+// which release frees.
+func (s *Server) pick(group string, p *config.Provider, size int64, needTS bool, tried map[string]bool, sk *skips) *config.Account {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	best, bestState, bestVT := s.choose(group, p, size, needTS, tried, sk)
 	if best == nil {
 		return nil
 	}
@@ -155,7 +163,7 @@ func (s *Server) pick(group string, p *config.Provider, size int64, needTS bool,
 	s.clocks[group] = bestVT
 	bestState.vt = bestVT + 1/float64(w)
 	bestState.inflight++
-	bestState.LastUsed = now
+	bestState.LastUsed = s.now()
 	bestState.Requests++
 	return best
 }

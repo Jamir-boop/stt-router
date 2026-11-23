@@ -1012,6 +1012,121 @@ func TestManagementAPI(t *testing.T) {
 	}
 }
 
+func TestDashboardFrameAncestors(t *testing.T) {
+	csp := func(e *env) string {
+		resp, err := http.Get(e.http.URL + "/")
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp.Header.Get("Content-Security-Policy")
+	}
+	e := newEnv(t, baseConfig("http://unused.invalid", "a"), "127.0.0.1:8330")
+	if got := csp(e); !strings.HasSuffix(got, "frame-ancestors 'none'") {
+		t.Errorf("default CSP %q", got)
+	}
+	cfg := baseConfig("http://unused.invalid", "a")
+	cfg.FrameAncestors = []string{"http://127.0.0.1:8790"}
+	e = newEnv(t, cfg, "127.0.0.1:8330")
+	if got := csp(e); !strings.HasSuffix(got, "frame-ancestors http://127.0.0.1:8790") {
+		t.Errorf("CSP with one origin %q", got)
+	}
+}
+
+func TestDashboardHasRoutingPanel(t *testing.T) {
+	e := newEnv(t, baseConfig("http://unused.invalid", "a"), "127.0.0.1:8330")
+	resp, err := http.Get(e.http.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	page := string(b)
+	for _, want := range []string{`id="h-routing"`, `id="route-model"`, `id="routing-flow"`, `id="add-step"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("dashboard has no %s", want)
+		}
+	}
+	// The panel sits between Totals and Accounts.
+	if t1, r, a := strings.Index(page, `id="h-totals"`), strings.Index(page, `id="h-routing"`), strings.Index(page, `id="h-accounts"`); !(t1 < r && r < a) {
+		t.Errorf("panel order totals=%d routing=%d accounts=%d", t1, r, a)
+	}
+}
+
+// TestStatusNextAccount checks that the status preview reports the account
+// that pick chooses next, and only usable ones.
+func TestStatusNextAccount(t *testing.T) {
+	up := newFake(t, ok)
+	e := newEnv(t, baseConfig(up.srv.URL, "a", "b", "c"), "127.0.0.1:8330")
+	next := func() string {
+		t.Helper()
+		_, out := e.api("GET", "/api/status", "")
+		var st struct {
+			Providers []struct{ Name, Next string }
+		}
+		if err := json.Unmarshal([]byte(out), &st); err != nil {
+			t.Fatal(err)
+		}
+		for _, p := range st.Providers {
+			if p.Name == "groq" {
+				return p.Next
+			}
+		}
+		t.Fatalf("no groq in %s", out)
+		return ""
+	}
+	setState := func(name string, fn func(a *account)) {
+		e.srv.mu.Lock()
+		fn(e.srv.acct("groq", name))
+		e.srv.mu.Unlock()
+	}
+
+	// The reported account is the one the next request goes to (a, b, c, a).
+	for i := 0; i < 4; i++ {
+		e.clock.Add(time.Second)
+		want := next()
+		if status, body, _ := e.simple("whisper", ""); status != 200 {
+			t.Fatalf("status %d %s", status, body)
+		}
+		if got := up.last().Account; got != key(want) {
+			t.Fatalf("request %d went to %q, preview said %q", i, got, want)
+		}
+	}
+
+	// Two ready accounts: the least recently used one (b; a was used last).
+	if status, out := e.api("PUT", "/api/providers/groq/accounts/c", `{"enabled":false}`); status != 200 {
+		t.Fatalf("disable c: %d %s", status, out)
+	}
+	if got := next(); got != "b" {
+		t.Fatalf("next %q, want b", got)
+	}
+
+	// A cooling account is never reported, even when it is the least recently used.
+	setState("b", func(a *account) { a.CooldownUntil = e.clock.Now().Add(time.Minute) })
+	if got := next(); got != "a" {
+		t.Fatalf("next %q with b cooling, want a", got)
+	}
+
+	// An invalid account is never reported; with nothing usable the value is empty.
+	setState("a", func(a *account) { a.Invalid, a.CooldownUntil = true, e.clock.Now().Add(time.Hour) })
+	if got := next(); got != "" {
+		t.Fatalf("next %q with nothing usable, want empty", got)
+	}
+	if status, _, _ := e.simple("whisper", ""); status != 429 {
+		t.Fatalf("status %d with nothing usable, want 429", status)
+	}
+
+	// After b's cooldown, b is reported and pick uses it.
+	e.clock.Add(time.Minute)
+	if got := next(); got != "b" {
+		t.Fatalf("next %q after cooldown, want b", got)
+	}
+	e.simple("whisper", "")
+	if got := up.last().Account; got != key("b") {
+		t.Fatalf("request went to %q, want b", got)
+	}
+}
+
 func TestStateSurvivesRestart(t *testing.T) {
 	up := newFake(t, rateLimitFirst(http.Header{"Retry-After": {"600"}}, "slow"))
 	e := newEnv(t, baseConfig(up.srv.URL, "a", "b"), "127.0.0.1:8330")

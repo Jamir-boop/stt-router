@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -43,6 +44,7 @@ type Config struct {
 	RequestTimeout Duration             `json:"request_timeout"`
 	QuotaCooldown  Duration             `json:"quota_cooldown"`
 	RequestLogSize int                  `json:"request_log_size"`
+	FrameAncestors []string             `json:"frame_ancestors,omitempty"`
 	Providers      map[string]*Provider `json:"providers"`
 	Models         map[string][]Target  `json:"models"`
 }
@@ -215,6 +217,12 @@ func (c *Config) Validate() error {
 		add("request_log_size must not be negative")
 	}
 
+	for i, o := range c.FrameAncestors {
+		if !validOrigin(o) {
+			add("frame_ancestors[%d] %q: must be an origin such as http://127.0.0.1:8790 (http or https, a host, an optional port, no path, no wildcard)", i, o)
+		}
+	}
+
 	names, keys := map[string]bool{}, map[string]bool{}
 	for i, k := range c.ClientKeys {
 		where := fmt.Sprintf("client_keys[%d]", i)
@@ -296,6 +304,26 @@ func (c *Config) Validate() error {
 		return errors.New("invalid config:\n  " + strings.Join(errs, "\n  "))
 	}
 	return nil
+}
+
+// validOrigin accepts scheme://host[:port] and nothing else, because the
+// value goes into the Content-Security-Policy header as written.
+func validOrigin(o string) bool {
+	u, err := url.Parse(o)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Hostname() == "" || o != u.Scheme+"://"+u.Host || strings.HasSuffix(u.Host, ":") {
+		return false
+	}
+	if p := u.Port(); p != "" {
+		if n, err := strconv.Atoi(p); err != nil || n < 1 || n > 65535 {
+			return false
+		}
+	}
+	for _, r := range u.Hostname() {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '.') {
+			return false
+		}
+	}
+	return true
 }
 
 func validName(s string) bool { return s != "" && !strings.Contains(s, "/") }

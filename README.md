@@ -15,7 +15,7 @@ You run one small binary on your machine. Your apps send OpenAI-style transcript
 - Cooldowns from `Retry-After`, from "try again in 1m2.5s" text, or exponential backoff. Bad keys are marked invalid.
 - Cooldowns, counters, and the request log survive a restart.
 - The upload is read once and replayed for each attempt. It is never decoded or re-encoded.
-- A built-in dashboard: totals, account states with live countdowns, models, client keys, and the request log.
+- A built-in dashboard: totals, a routing view, account states with live countdowns, models, client keys, and the request log.
 
 ## Quick start
 
@@ -183,6 +183,7 @@ Top-level keys:
 | `request_timeout` | `"10m"` | Total time for one upstream attempt (Go duration). |
 | `quota_cooldown` | `"1h"` | Cooldown after a quota error. |
 | `request_log_size` | `500` | Entries in the request log. |
+| `frame_ancestors` | `[]` | Origins that can show the dashboard in an `<iframe>`, for example `["http://127.0.0.1:8790"]`. Each value is `http` or `https`, a host, and an optional port, with no path and no wildcard. Empty means no page can frame it. |
 | `providers` | | Map from group name to a provider group. |
 | `models` | | Map from client model name to a list of targets. |
 
@@ -231,6 +232,24 @@ When no account of any target is usable, the answer is 429 with `Retry-After` se
 
 The router writes cooldowns, counters, totals, and the request log to the state file. It writes at most every 2 seconds, atomically, and once more at shutdown. On SIGINT or SIGTERM it stops accepting requests, waits up to 60 seconds for requests in flight, and flushes the state.
 
+## Dashboard
+
+Open `http://127.0.0.1:8330/` and sign in with the management key. The page uses one dark theme.
+
+The Routing panel shows the path of a request for one model. Select the model at the top of the panel. The panel remembers the choice in the browser tab.
+
+- Each target of the model is a step. Step 1 is "Preferred"; the next ones are "Fallback 1", "Fallback 2", and so on.
+- Each step shows the accounts of its provider group, with state, cooldown countdown, weight, and limits.
+- The step that gets the next request has an amber border and the word "next". In that step, the account that the router picks next is marked too. The status API gives this account in the `next` field of each provider group.
+- A step with no usable account has a dashed border and a reason, for example "all cooling".
+- The last row shows the answer when no account is usable: 429 with `Retry-After`, or 503 when no account is enabled.
+
+To change the order of the steps, drag a step by its handle, or focus the handle and press Arrow Up or Arrow Down. The step menu ("...") has Move up, Move down, and Remove step. "Add step" adds a target at the end. Each change is saved to the config at once. If the save fails, the old order comes back.
+
+The account menu has Enable or Disable, Reset cooldown, Test, and Edit. Accounts in one step are not tried in a fixed order: the router takes the least recently used one, so you cannot drag accounts.
+
+The preview assumes a small upload with no timestamp format. It ignores `max_file_mb` and `plain_json`. It shows busy accounts as they were at the last refresh.
+
 The "Test" button sends a 0.5 second silent WAV to one account, also when the account is in cooldown. A success clears the cooldown; a failure applies the rules above.
 
 ## Management API
@@ -239,7 +258,7 @@ The dashboard uses these endpoints. They need `Authorization: Bearer <management
 
 | Method and path | Description |
 | --- | --- |
-| `GET /api/status` | Totals, provider groups with account states, models, client keys. |
+| `GET /api/status` | Totals, provider groups with account states and the `next` account, models, client keys. |
 | `GET /api/logs` | The request log. |
 | `POST /api/providers/{group}/accounts` | Add an account. |
 | `PUT /api/providers/{group}/accounts/{name}` | Change an account. Omitted fields keep their values; an empty `api_key` keeps the key. |
@@ -259,6 +278,7 @@ The dashboard uses these endpoints. They need `Authorization: Bearer <management
 - If an upstream error text contains the account key, the router masks it before it stores or returns the text.
 - The config and state files are written with mode 0600, in a directory with mode 0700.
 - The dashboard is one embedded page with no external requests, served with a strict Content Security Policy. The management key is kept in `sessionStorage` of the browser tab.
+- By default no page can show the dashboard in a frame. Each origin in `frame_ancestors` can frame it. That origin can then show the dashboard inside its own page, so list only origins that you trust. The framed dashboard still needs the management key.
 - The router speaks plain HTTP. To expose it on a network, put a TLS reverse proxy in front of it.
 
 ## Performance
