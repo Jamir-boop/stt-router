@@ -186,3 +186,15 @@ func TestAzureErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestParseAzureSplitsLongPhrase(t *testing.T) {
+	tr, err := parseAzure([]byte(`{"durationMilliseconds":3000,"phrases":[{"offsetMilliseconds":0,"durationMilliseconds":3000,"text":"Hola. Bien.","words":[
+		{"text":"Hola.","offsetMilliseconds":0,"durationMilliseconds":500},
+		{"text":"Bien.","offsetMilliseconds":2000,"durationMilliseconds":500}]}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tr.Segments) != 2 || tr.Segments[1].Text != "Bien." || tr.Segments[1].Start != 2 {
+		t.Fatalf("segments = %+v", tr.Segments)
+	}
+}

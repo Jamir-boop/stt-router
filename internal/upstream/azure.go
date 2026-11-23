@@ -152,6 +152,14 @@ func parseAzure(body []byte) (*transcript.Transcript, error) {
 		}
 	}
 	t.Text = strings.TrimSpace(strings.Join(texts, " "))
+	if len(t.Words) > 0 {
+		// MAI returns one long phrase; sentence-sized segments make usable subtitles.
+		tokens := make([]transcript.Token, len(t.Words))
+		for i, w := range t.Words {
+			tokens[i] = transcript.Token{Text: w.Word + " ", Start: w.Start, End: w.End, Speaker: w.Speaker, IsWord: true}
+		}
+		t.Segments = transcript.SegmentsFromTokens(tokens)
+	}
 	if t.Duration == 0 {
 		t.Duration = end
 	}
