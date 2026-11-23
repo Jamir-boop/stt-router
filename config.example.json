@@ -25,6 +25,14 @@
         { "name": "eleven-1", "api_key": "sk_your_elevenlabs_key_here", "enabled": true },
         { "name": "eleven-2", "api_key": "sk_your_second_elevenlabs_key", "enabled": true, "weight": 2 }
       ]
+    },
+    "azure": {
+      "type": "azure-speech",
+      "base_url": "https://your-resource.cognitiveservices.azure.com",
+      "convert": "ffmpeg",
+      "accounts": [
+        { "name": "azure-1", "api_key": "your_speech_resource_key_here", "enabled": true }
+      ]
     }
   },
   "models": {
@@ -37,6 +45,9 @@
     ],
     "scribe_v3": [
       { "provider": "elevenlabs", "model": "scribe_v3" }
+    ],
+    "mai-transcribe-2": [
+      { "provider": "azure", "model": "MAI-Transcribe-2" }
     ]
   }
 }

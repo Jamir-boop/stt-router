@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -18,8 +19,15 @@ import (
 
 // Provider types.
 const (
-	TypeOpenAI     = "openai"
-	TypeElevenLabs = "elevenlabs"
+	TypeOpenAI      = "openai"
+	TypeElevenLabs  = "elevenlabs"
+	TypeAzureSpeech = "azure-speech"
+)
+
+// Values of a provider group's "convert" option (azure-speech only).
+const (
+	ConvertOff    = "off"
+	ConvertFFmpeg = "ffmpeg"
 )
 
 // Defaults for optional settings.
@@ -59,6 +67,7 @@ type ClientKey struct {
 type Provider struct {
 	Type     string     `json:"type"`
 	BaseURL  string     `json:"base_url"`
+	Convert  string     `json:"convert,omitempty"` // azure-speech: "off" (default) or "ffmpeg"
 	Accounts []*Account `json:"accounts"`
 }
 
@@ -252,8 +261,19 @@ func (c *Config) Validate() error {
 			add("%s: is null", where)
 			continue
 		}
-		if p.Type != TypeOpenAI && p.Type != TypeElevenLabs {
-			add("%s.type %q: must be %q or %q", where, p.Type, TypeOpenAI, TypeElevenLabs)
+		if p.Type != TypeOpenAI && p.Type != TypeElevenLabs && p.Type != TypeAzureSpeech {
+			add("%s.type %q: must be %q, %q or %q", where, p.Type, TypeOpenAI, TypeElevenLabs, TypeAzureSpeech)
+		}
+		switch {
+		case p.Convert == "":
+		case p.Type != TypeAzureSpeech:
+			add("%s.convert: is valid only for type %q", where, TypeAzureSpeech)
+		case p.Convert == ConvertFFmpeg:
+			if _, err := exec.LookPath("ffmpeg"); err != nil {
+				add("%s.convert %q: ffmpeg is not on PATH; install ffmpeg or set convert to %q", where, p.Convert, ConvertOff)
+			}
+		case p.Convert != ConvertOff:
+			add("%s.convert %q: must be %q or %q", where, p.Convert, ConvertOff, ConvertFFmpeg)
 		}
 		if u, err := url.Parse(p.BaseURL); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
 			add("%s.base_url %q: must be an absolute http or https URL", where, p.BaseURL)

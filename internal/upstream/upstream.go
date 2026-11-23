@@ -39,6 +39,7 @@ type Request struct {
 	Prompt      string
 	Temperature string
 	Words       bool    // the client asked for word timestamps
+	Timestamps  bool    // the response format needs timestamps
 	Plain       bool    // the account supports only json, so ask for json
 	Extra       []Field // other client fields; each provider keeps the ones it knows
 	File        File
@@ -50,6 +51,14 @@ var elevenLabsExtra = map[string]bool{
 	"tag_audio_events": true, "keyterms": true, "seed": true, "file_format": true,
 }
 
+// AzureAPIVersion is the Azure Speech fast transcription API version.
+const AzureAPIVersion = "2025-10-15"
+
+// RequestError is a client field that the upstream type cannot take.
+type RequestError struct{ Msg string }
+
+func (e *RequestError) Error() string { return e.Msg }
+
 // NewHTTPRequest builds the upstream request. The body streams the upload
 // from File.Open with a known length, so no second copy is built in memory.
 func NewHTTPRequest(ctx context.Context, typ, baseURL, apiKey, userAgent string, r *Request) (*http.Request, error) {
@@ -60,6 +69,7 @@ func NewHTTPRequest(ctx context.Context, typ, baseURL, apiKey, userAgent string,
 		}
 	}
 	var url string
+	fileField, definition := "file", []byte(nil)
 	switch typ {
 	case config.TypeOpenAI:
 		url = baseURL + "/audio/transcriptions"
@@ -87,11 +97,18 @@ func NewHTTPRequest(ctx context.Context, typ, baseURL, apiKey, userAgent string,
 				fields = append(fields, f)
 			}
 		}
+	case config.TypeAzureSpeech:
+		url = baseURL + "/speechtotext/transcriptions:transcribe?api-version=" + AzureAPIVersion
+		def, err := azureDefinition(r)
+		if err != nil {
+			return nil, err
+		}
+		fileField, definition = "audio", def
 	default:
 		return nil, fmt.Errorf("unknown provider type %q", typ)
 	}
 
-	contentType, length, open := multipartBody(fields, r.File)
+	contentType, length, open := multipartBody(fields, fileField, r.File, definition)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, open())
 	if err != nil {
 		return nil, err
@@ -101,9 +118,12 @@ func NewHTTPRequest(ctx context.Context, typ, baseURL, apiKey, userAgent string,
 	req.Header.Set("Content-Type", contentType)
 	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", "application/json")
-	if typ == config.TypeElevenLabs {
+	switch typ {
+	case config.TypeElevenLabs:
 		req.Header.Set("xi-api-key", apiKey)
-	} else {
+	case config.TypeAzureSpeech:
+		req.Header.Set("Ocp-Apim-Subscription-Key", apiKey)
+	default:
 		req.Header.Set("Authorization", "Bearer "+apiKey)
 	}
 	return req, nil
@@ -111,7 +131,9 @@ func NewHTTPRequest(ctx context.Context, typ, baseURL, apiKey, userAgent string,
 
 var quoteEscaper = strings.NewReplacer("\\", "\\\\", `"`, "\\\"")
 
-func multipartBody(fields []Field, f File) (string, int64, func() io.Reader) {
+// multipartBody writes fields before the file part and an optional JSON
+// "definition" part after it.
+func multipartBody(fields []Field, fileField string, f File, definition []byte) (string, int64, func() io.Reader) {
 	var head, tail bytes.Buffer
 	mw := multipart.NewWriter(&head)
 	for _, fl := range fields {
@@ -126,12 +148,20 @@ func multipartBody(fields []Field, f File) (string, int64, func() io.Reader) {
 		ct = "application/octet-stream"
 	}
 	h := textproto.MIMEHeader{}
-	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="file"; filename="%s"`, quoteEscaper.Replace(name)))
+	h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fileField, quoteEscaper.Replace(name)))
 	h.Set("Content-Type", ct)
 	_, _ = mw.CreatePart(h)
-	// A second writer with the same boundary writes only the closing delimiter.
+	// A second writer with the same boundary writes the parts after the file and the closing delimiter.
 	tw := multipart.NewWriter(&tail)
 	_ = tw.SetBoundary(mw.Boundary())
+	if definition != nil {
+		dh := textproto.MIMEHeader{}
+		dh.Set("Content-Disposition", `form-data; name="definition"`)
+		dh.Set("Content-Type", "application/json")
+		tail.WriteString("\r\n") // CreatePart omits the CRLF before a writer's first boundary
+		pw, _ := tw.CreatePart(dh)
+		_, _ = pw.Write(definition)
+	}
 	_ = tw.Close()
 	hb, tb := head.Bytes(), tail.Bytes()
 	open := func() io.Reader {
@@ -147,6 +177,8 @@ func Parse(typ string, body []byte) (*transcript.Transcript, error) {
 		return parseOpenAI(body)
 	case config.TypeElevenLabs:
 		return parseElevenLabs(body)
+	case config.TypeAzureSpeech:
+		return parseAzure(body)
 	}
 	return nil, fmt.Errorf("unknown provider type %q", typ)
 }

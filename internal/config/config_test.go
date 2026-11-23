@@ -132,14 +132,62 @@ func TestEnvReferences(t *testing.T) {
 	}
 }
 
+// fakeFFmpegPath puts a file named ffmpeg on PATH; validation only looks it up.
+func fakeFFmpegPath(t *testing.T) {
+	dir := t.TempDir()
+	for _, name := range []string{"ffmpeg", "ffmpeg.exe"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("#!/bin/sh\n"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Setenv("PATH", dir)
+}
+
 func TestExampleConfigIsValid(t *testing.T) {
 	t.Setenv("GROQ_API_KEY_2", "x")
+	fakeFFmpegPath(t)
 	c, created, err := Load(filepath.Join("..", "..", "config.example.json"))
 	if err != nil || created {
 		t.Fatalf("created=%v err=%v", created, err)
 	}
 	if len(c.Models["auto"]) != 2 || len(c.Providers["groq"].Accounts) != 2 || len(c.Providers["elevenlabs"].Accounts) != 2 {
 		t.Fatalf("unexpected example config: %+v", c)
+	}
+	if a := c.Providers["azure"]; a == nil || a.Type != TypeAzureSpeech || a.Convert != ConvertFFmpeg ||
+		len(c.Models["mai-transcribe-2"]) != 1 || c.Models["mai-transcribe-2"][0].Model != "MAI-Transcribe-2" {
+		t.Fatalf("unexpected azure example: %+v %+v", a, c.Models["mai-transcribe-2"])
+	}
+}
+
+func TestConvertOption(t *testing.T) {
+	load := func(js string) error {
+		path := filepath.Join(t.TempDir(), "c.json")
+		if err := os.WriteFile(path, []byte(js), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		_, _, err := Load(path)
+		return err
+	}
+	azure := func(convert string) string {
+		return `{"providers":{"az":{"type":"azure-speech","base_url":"https://r.example.com","convert":"` + convert + `"}}}`
+	}
+	if err := load(azure("off")); err != nil {
+		t.Errorf("off: %v", err)
+	}
+	if err := load(`{"providers":{"g":{"type":"openai","base_url":"https://a","convert":"off"}}}`); err == nil ||
+		!strings.Contains(err.Error(), `providers.g.convert: is valid only for type "azure-speech"`) {
+		t.Errorf("convert on openai: %v", err)
+	}
+	if err := load(azure("sox")); err == nil || !strings.Contains(err.Error(), `providers.az.convert "sox": must be "off" or "ffmpeg"`) {
+		t.Errorf("unknown value: %v", err)
+	}
+	t.Setenv("PATH", t.TempDir())
+	if err := load(azure("ffmpeg")); err == nil || !strings.Contains(err.Error(), "ffmpeg is not on PATH") {
+		t.Errorf("missing ffmpeg: %v", err)
+	}
+	fakeFFmpegPath(t)
+	if err := load(azure("ffmpeg")); err != nil {
+		t.Errorf("ffmpeg on PATH: %v", err)
 	}
 }
 

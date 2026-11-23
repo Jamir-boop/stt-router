@@ -108,19 +108,42 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 
 	needTS := transcript.NeedsTimestamps(form.format)
 	var sk skips
+	var prep audioPrep
+	defer prep.close()
 	lastErr := ""
 	for _, t := range targets {
 		p := cfg.Providers[t.Provider]
+		req := &form.req
+		if p.Type == config.TypeAzureSpeech {
+			file, err := s.azureFile(r.Context(), cfg, p, form, &prep)
+			if r.Context().Err() != nil {
+				entry.Status, entry.Error = 499, "client closed the request"
+				return
+			}
+			if err != nil {
+				// The target cannot take this audio; no account is judged.
+				if errors.Is(err, errUnsupported) {
+					sk.unsupported = true
+				} else {
+					sk.badAudio = true
+				}
+				lastErr = fmt.Sprintf("%s: %v", t.Provider, err)
+				continue
+			}
+			rq := form.req
+			rq.File = file
+			req = &rq
+		}
 		tried := map[string]bool{}
 		for {
-			acc := s.pick(t.Provider, p, form.file.Size(), needTS, tried, &sk)
+			acc := s.pick(t.Provider, p, req.File.Size, needTS, tried, &sk)
 			if acc == nil {
 				break
 			}
 			tried[acc.Name] = true
 			entry.Attempts++
 			entry.Provider, entry.Account, entry.UpstreamModel = t.Provider, acc.Name, t.Model
-			res := s.attempt(r.Context(), cfg, t.Provider, p, acc, t.Model, &form.req)
+			res := s.attempt(r.Context(), cfg, t.Provider, p, acc, t.Model, req)
 			if res.canceled {
 				s.free(t.Provider, acc.Name)
 				entry.Status, entry.Error = 499, "client closed the request"
@@ -168,6 +191,12 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	case sk.format:
 		fail(http.StatusBadRequest, "invalid_request_error", "unsupported_response_format",
 			fmt.Sprintf("response_format %q needs timestamps, and every account for model %q has plain_json set%s", form.format, form.model, suffix))
+	case sk.unsupported:
+		fail(http.StatusUnsupportedMediaType, "invalid_request_error", "unsupported_media_type",
+			fmt.Sprintf("no target of model %q can take this audio format: azure-speech takes WAV, MP3 or FLAC%s", form.model, suffix))
+	case sk.badAudio:
+		fail(http.StatusBadRequest, "invalid_request_error", "invalid_audio",
+			fmt.Sprintf("the audio could not be converted for model %q%s", form.model, suffix))
 	default:
 		fail(http.StatusServiceUnavailable, "server_error", "no_account",
 			fmt.Sprintf("no enabled account for model %q%s", form.model, suffix))
@@ -281,6 +310,7 @@ func (s *Server) readForm(r *http.Request, cfg *config.Config, maxBytes int64) (
 		return f, &formError{status: http.StatusBadRequest, param: "model", msg: "model is required"}
 	}
 	f.req.Words = f.words
+	f.req.Timestamps = transcript.NeedsTimestamps(f.format)
 	return f, nil
 }
 
@@ -304,6 +334,10 @@ func (s *Server) attempt(ctx context.Context, cfg *config.Config, group string, 
 	apiKey := config.Resolve(acc.APIKey)
 	hreq, err := upstream.NewHTTPRequest(actx, p.Type, p.BaseURL, apiKey, "stt-router/"+s.opts.Version, &req)
 	if err != nil {
+		var re *upstream.RequestError
+		if errors.As(err, &re) {
+			return result{class: upstream.ClientError, status: http.StatusBadRequest, msg: re.Msg}
+		}
 		return result{class: upstream.ServerError, msg: err.Error()}
 	}
 	resp, err := (&http.Client{Transport: s.transport(group)}).Do(hreq)

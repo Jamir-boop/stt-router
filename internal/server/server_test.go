@@ -33,11 +33,14 @@ func (c *clock) Add(d time.Duration) {
 
 // captured is what a fake upstream saw.
 type captured struct {
-	Path    string
-	Header  http.Header
-	Fields  map[string][]string
-	File    []byte
-	Account string
+	Path     string
+	Query    string
+	Header   http.Header
+	Fields   map[string][]string
+	File     []byte
+	FileName string
+	FileType string
+	Account  string
 }
 
 // fake is a fake upstream. handle returns status, headers and body per request.
@@ -57,15 +60,21 @@ func newFake(t *testing.T, handle func(c captured) (int, http.Header, string)) *
 			http.Error(w, err.Error(), 500)
 			return
 		}
-		c := captured{Path: r.URL.Path, Header: r.Header.Clone(), Fields: r.MultipartForm.Value}
-		if fh := r.MultipartForm.File["file"]; len(fh) == 1 {
-			fr, _ := fh[0].Open()
-			c.File, _ = io.ReadAll(fr)
-			fr.Close()
+		c := captured{Path: r.URL.Path, Query: r.URL.RawQuery, Header: r.Header.Clone(), Fields: r.MultipartForm.Value}
+		for _, name := range []string{"file", "audio"} { // azure-speech names the file part "audio"
+			if fh := r.MultipartForm.File[name]; len(fh) == 1 {
+				fr, _ := fh[0].Open()
+				c.File, _ = io.ReadAll(fr)
+				fr.Close()
+				c.FileName, c.FileType = fh[0].Filename, fh[0].Header.Get("Content-Type")
+			}
 		}
 		c.Account = strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 		if c.Account == "" {
 			c.Account = r.Header.Get("xi-api-key")
+		}
+		if c.Account == "" {
+			c.Account = r.Header.Get("Ocp-Apim-Subscription-Key")
 		}
 		f.mu.Lock()
 		f.calls = append(f.calls, c)

@@ -2,7 +2,7 @@
 
 A self-hosted speech-to-text account router. It is like CLIProxyAPI, but for speech-to-text.
 
-You run one small binary on your machine. Your apps send OpenAI-style transcription requests to it. The router sends each request to one of your provider accounts (Groq, OpenAI, ElevenLabs, or any OpenAI-compatible server). When an account hits a rate limit, a quota, or an error, the router puts that account in a cooldown and tries the next account or the next provider.
+You run one small binary on your machine. Your apps send OpenAI-style transcription requests to it. The router sends each request to one of your provider accounts (Groq, OpenAI, ElevenLabs, Microsoft MAI-Transcribe-2 on Azure Speech, or any OpenAI-compatible server). When an account hits a rate limit, a quota, or an error, the router puts that account in a cooldown and tries the next account or the next provider.
 
 ## Features
 
@@ -10,11 +10,12 @@ You run one small binary on your machine. Your apps send OpenAI-style transcript
 - OpenAI-compatible `POST /v1/audio/transcriptions`, so OpenAI SDKs and tools work without changes.
 - All five response formats (`json`, `text`, `verbose_json`, `srt`, `vtt`) for every provider. The router makes the subtitles itself, so `srt` and `vtt` also work with Groq and ElevenLabs.
 - ElevenLabs Scribe mapped to the OpenAI shapes, with word timestamps, speakers, and segments.
+- Microsoft MAI-Transcribe-2 through the Azure Speech fast transcription API, mapped the same way.
 - Model names with fallback chains, for example `auto` = Groq first, then ElevenLabs.
 - Least recently used choice among accounts, with weights, concurrency limits, and per-account file size limits.
 - Cooldowns from `Retry-After`, from "try again in 1m2.5s" text, or exponential backoff. Bad keys are marked invalid.
 - Cooldowns, counters, and the request log survive a restart.
-- The upload is read once and replayed for each attempt. It is never decoded or re-encoded.
+- The upload is read once and replayed for each attempt. It is never decoded or re-encoded, unless an `azure-speech` group sets `convert: "ffmpeg"`.
 - A built-in dashboard: totals, a routing view, account states with live countdowns, models, client keys, and the request log.
 
 ## Quick start
@@ -122,12 +123,12 @@ Form fields of `/v1/audio/transcriptions`:
 | --- | --- |
 | `file` | Required. Any audio or video format the upstream accepts. |
 | `model` | Required. A model name from the config `models`. |
-| `language` | Optional. Sent as `language` (OpenAI type) or `language_code` (ElevenLabs). |
+| `language` | Optional. Sent as `language` (OpenAI type), `language_code` (ElevenLabs), or `locales` (Azure Speech). |
 | `prompt` | Optional. OpenAI type only. |
 | `temperature` | Optional number. |
 | `response_format` | `json` (default), `text`, `verbose_json`, `srt`, `vtt`. |
 | `timestamp_granularities[]` | `segment`, `word`. With `word`, the router asks the upstream for word timestamps. |
-| other fields | Passed to the upstream when its type knows them. ElevenLabs: `diarize`, `num_speakers`, `diarization_threshold`, `tag_audio_events`, `keyterms`, `seed`, `file_format`. Repeated values are kept. Other fields are dropped. |
+| other fields | Passed to the upstream when its type knows them. ElevenLabs: `diarize`, `num_speakers`, `diarization_threshold`, `tag_audio_events`, `keyterms`, `seed`, `file_format`. Azure Speech: `diarize`, `num_speakers`, `keyterms`, `transcribe_style` (see below). Repeated values are kept. Other fields are dropped. |
 
 Errors use the OpenAI error shape:
 
@@ -137,26 +138,79 @@ Errors use the OpenAI error shape:
 
 | Status | When |
 | --- | --- |
-| 400 | Bad form: no file, no model, bad `response_format`, or bad `temperature`. Also a format that every account refuses (`plain_json`). |
+| 400 | Bad form: no file, no model, bad `response_format`, or bad `temperature`. Also a format that every account refuses (`plain_json`), a bad `num_speakers` for Azure Speech, and audio that `ffmpeg` could not convert when no other target is left (`invalid_audio`). |
 | 401 | Missing or wrong client key. |
 | 404 | Unknown model. |
 | 413 | Upload over `max_upload_mb`, or over the `max_file_mb` of every account. |
+| 415 | `unsupported_media_type`: no target can take the audio format. Only `azure-speech` targets refuse formats (they take WAV, MP3 and FLAC). |
 | 429 | All accounts are cooling down or busy. `Retry-After` is the soonest cooldown end, in seconds. |
 | 503 | No enabled account for the model. |
 | other 4xx | The upstream refused the request (bad audio, bad parameter). The upstream error is passed through. |
 
 ## Response formats per provider
 
-| `response_format` | `openai` type | `openai` with `plain_json` | `elevenlabs` type |
-| --- | --- | --- | --- |
-| `json` | yes | yes | yes |
-| `text` | yes | yes | yes |
-| `verbose_json` | yes, from the upstream `verbose_json` | refused | yes, built from the words |
-| `srt`, `vtt` | yes, from the upstream segments | refused | yes, from segments built from the words |
+| `response_format` | `openai` type | `openai` with `plain_json` | `elevenlabs` type | `azure-speech` type |
+| --- | --- | --- | --- | --- |
+| `json` | yes | yes | yes | yes |
+| `text` | yes | yes | yes | yes |
+| `verbose_json` | yes, from the upstream `verbose_json` | refused | yes, built from the words | yes, one segment per phrase, with words |
+| `srt`, `vtt` | yes, from the upstream segments | refused | yes, from segments built from the words | yes, one cue per phrase |
 
 For the `openai` type, the router always asks the upstream for `verbose_json` with segment timestamps, and converts it. This gives the audio duration for the usage counters. Set `plain_json: true` on an account whose upstream supports only `json` and `text`. For such an account, a request that needs timestamps skips the account and goes to the next one.
 
 For ElevenLabs, `verbose_json` has `words` with `speaker` (from `speaker_id`) when diarization is on. Segments start a new line at a sentence end, at a silence over 1 second, and at a speaker change. Segments have a `speaker` field too.
+
+## Azure Speech (MAI-Transcribe-2)
+
+The `azure-speech` type sends the upload to the Azure Speech fast transcription API with Microsoft's MAI-Transcribe models. You need a Speech (Foundry) resource in a region that offers MAI-Transcribe. Only some Speech regions offer it; see the "Transcribe with MAI-Transcribe" column in the Microsoft Speech service regions list.
+
+```json
+"providers": {
+  "azure": {
+    "type": "azure-speech",
+    "base_url": "https://your-resource.cognitiveservices.azure.com",
+    "convert": "ffmpeg",
+    "accounts": [{ "name": "azure-1", "api_key": "env:AZURE_SPEECH_KEY" }]
+  }
+},
+"models": {
+  "mai-transcribe-2": [{ "provider": "azure", "model": "MAI-Transcribe-2" }]
+}
+```
+
+`base_url` is the resource endpoint. `api_key` is a resource key. The target `model` is the Azure model name, for example `MAI-Transcribe-2`.
+
+The request is `POST {base_url}/speechtotext/transcriptions:transcribe?api-version=2025-10-15` with the header `Ocp-Apim-Subscription-Key`. The form has an `audio` part (the file) and a `definition` part (JSON):
+
+| Client field | `definition` |
+| --- | --- |
+| target `model` | `enhancedMode: {"enabled": true, "model": "..."}` |
+| `timestamp_granularities[]=word`, or `verbose_json`, `srt`, `vtt` | `enhancedMode.modelOptions.timestamps: "word"`. Else `"segment"`, which gives the duration for the usage counters. |
+| `transcribe_style` | `enhancedMode.modelOptions.transcribeStyle` (`verbatim`, the Azure default, or `clean`). |
+| `language` | `locales: ["<language>"]`. Without it, Azure detects the language. |
+| `diarize=true` | `diarization: {"enabled": true}` |
+| `num_speakers` | `diarization.maxSpeakers`, only with `diarize=true`. Must be a positive integer. |
+| `keyterms` (repeated) | `phraseList: {"phrases": [...]}` |
+| always | `profanityFilterMode: "None"`, so that the transcript keeps the words as spoken. Azure masks profanity by default. |
+
+`prompt` and `temperature` have no Azure field; the router drops them.
+
+The response maps as follows: `text` is the `combinedPhrases` texts joined with a space. `language` is the locale of the first phrase. `duration` is `durationMilliseconds` (or the end of the last phrase). Each phrase becomes one segment, with `speaker` set to `speaker_<n>` when diarization is on. `words` come from the phrase words, with the phrase speaker.
+
+### Audio formats and `convert`
+
+MAI-Transcribe takes WAV, MP3, and FLAC only. The router finds the format from the first bytes of the upload, not from the file name, and sends the matching file name and content type.
+
+| Group `convert` | WAV, MP3, FLAC | Other formats (Ogg Opus, WebM, M4A, ...) |
+| --- | --- | --- |
+| absent or `"off"` | sent as they are | the target is skipped with no penalty for its accounts, and the next target gets the upload. With no other target, the answer is 415 `unsupported_media_type`. |
+| `"ffmpeg"` | sent as they are; converted when `diarize=true` | converted to 16 kHz mono FLAC |
+
+With `convert: "ffmpeg"`, the router runs `ffmpeg` once per request, at most 2 minutes, with temp files in the spool directory that it always removes. A client abort stops `ffmpeg`. All accounts of the group get the converted file; other targets get the original bytes. If the conversion fails, the router goes to the next target and does not cool down the account. `ffmpeg` must be on `PATH`: the router checks this at start when a group sets `convert: "ffmpeg"`.
+
+Diarization needs mono audio. The router cannot know the channel count without decoding, so with `convert: "ffmpeg"` and `diarize=true` it also converts WAV, MP3, and FLAC uploads. Without conversion, the upload goes as it is and Azure answers.
+
+Azure errors (`{"error": {"code": "...", "message": "..."}}`) follow the normal rules: 401 and 403 mark the key invalid, 429 cools down (with `Retry-After`), 5xx and 408 back off, and other 4xx go back to the client.
 
 ## Configuration
 
@@ -191,8 +245,9 @@ Provider group:
 
 | Key | Description |
 | --- | --- |
-| `type` | `openai` or `elevenlabs`. |
-| `base_url` | For `openai`, the URL before `/audio/transcriptions`, for example `https://api.groq.com/openai/v1` or `https://api.openai.com/v1`. For `elevenlabs`, `https://api.elevenlabs.io` (the default). |
+| `type` | `openai`, `elevenlabs`, or `azure-speech`. |
+| `base_url` | For `openai`, the URL before `/audio/transcriptions`, for example `https://api.groq.com/openai/v1` or `https://api.openai.com/v1`. For `elevenlabs`, `https://api.elevenlabs.io` (the default). For `azure-speech`, the resource endpoint, for example `https://your-resource.cognitiveservices.azure.com`. |
+| `convert` | `azure-speech` only. `"off"` (the default) or `"ffmpeg"`. See "Audio formats and `convert`". |
 | `accounts` | List of accounts. |
 
 Account:
@@ -303,7 +358,8 @@ The router overhead is a few tenths of a millisecond plus one extra copy of the 
 - Changes to `listen`, timeouts, and limits need a restart. The dashboard edits accounts, models, and client keys only.
 - An upstream response over 64 MB is treated as an error.
 - ElevenLabs segments come from a simple rule (sentence end, 1 s silence, speaker change), not from the provider.
-- The OpenAI type passes `prompt`; ElevenLabs has no prompt field, so the router drops it there.
+- The OpenAI type passes `prompt`; ElevenLabs and Azure Speech have no prompt field, so the router drops it there.
+- MAI-Transcribe-2 is a preview model. It takes WAV, MP3, and FLAC only, needs mono audio for diarization, and is offered only in some Speech regions.
 - Latency in the dashboard is in whole milliseconds.
 
 ## License

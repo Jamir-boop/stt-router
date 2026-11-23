@@ -100,6 +100,10 @@ type skips struct {
 	tooBig   bool
 	format   bool
 	disabled bool
+	// azure-speech targets skipped before any account: a format they cannot
+	// take, or a failed conversion
+	unsupported bool
+	badAudio    bool
 }
 
 func (k *skips) cooldown(t time.Time) {
