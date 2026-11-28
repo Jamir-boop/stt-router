@@ -169,6 +169,17 @@ VAD rule: frames of 20 ms, by RMS energy. A frame is speech when its RMS is abov
 
 Each turn is wrapped in a WAV header in memory and sent through the batch routing with `response_format=json`, plus `language` when set. One goroutine transcribes the turns in order. At most 8 turns wait; a full queue drops the oldest pending turn with a `failed` event. A failed turn answers `conversation.item.input_audio_transcription.failed`, not `error`.
 
+### OpenWhispr meetings
+
+OpenWhispr sends meeting audio only to realtime WebSocket providers, and the OpenAI Realtime URL is fixed in the app. `scripts/openwhispr-patch.sh` changes that URL in `/opt/OpenWhispr/resources/app.asar` to this router (`127.0.0.1:8330`) and keeps the original as `app.asar.orig`.
+
+```bash
+sudo scripts/openwhispr-patch.sh            # apply, then restart OpenWhispr
+sudo scripts/openwhispr-patch.sh --restore  # put the original file back
+```
+
+In OpenWhispr, set the meeting transcription provider to OpenAI Realtime with your own key. The key can be any text when the router has no client keys; else it must be a router client key. An OpenWhispr update replaces `app.asar` and removes the patch: run the script again. The script stops when the URL is not found exactly one time.
+
 ## Response formats per provider
 
 | `response_format` | `openai` type | `openai` with `plain_json` | `elevenlabs` type | `azure-speech` type |
