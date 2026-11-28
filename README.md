@@ -8,6 +8,7 @@ You run one small binary on your machine. Your apps send OpenAI-style transcript
 
 - One static Go binary, standard library only. Linux first; it also builds for macOS and Windows.
 - OpenAI-compatible `POST /v1/audio/transcriptions`, so OpenAI SDKs and tools work without changes.
+- A Realtime transcription WebSocket at `GET /v1/realtime` for live audio, with a simple energy VAD. Each turn is one normal batch request.
 - All five response formats (`json`, `text`, `verbose_json`, `srt`, `vtt`) for every provider. The router makes the subtitles itself, so `srt` and `vtt` also work with Groq and ElevenLabs.
 - ElevenLabs Scribe mapped to the OpenAI shapes, with word timestamps, speakers, and segments.
 - Microsoft MAI-Transcribe-2 through the Azure Speech fast transcription API, mapped the same way.
@@ -114,6 +115,7 @@ stt-router help
 | Method and path | Description |
 | --- | --- |
 | `POST /v1/audio/transcriptions` | Transcribe an upload (multipart form). |
+| `GET /v1/realtime` | Live transcription over a WebSocket (see below). |
 | `GET /v1/models` | The model names this router serves. |
 | `GET /healthz` | Always `200` with `{"status":"ok"}`. No auth. |
 
@@ -146,6 +148,26 @@ Errors use the OpenAI error shape:
 | 429 | All accounts are cooling down or busy. `Retry-After` is the soonest cooldown end, in seconds. |
 | 503 | No enabled account for the model. |
 | other 4xx | The upstream refused the request (bad audio, bad parameter). The upstream error is passed through. |
+
+## Realtime (WebSocket)
+
+The realtime endpoint gives live transcription for apps such as OpenWhispr. Each turn of speech becomes one normal batch request, so the model chains, accounts, cooldowns, request log, and totals are the same as for `/v1/audio/transcriptions`.
+
+URL: `ws://127.0.0.1:8330/v1/realtime?intent=transcription`. Send the client key as `Authorization: Bearer <key>`, the same rule as the batch API. A request without an Upgrade header answers `426`. A query parameter `model=<name>` sets the router model; without it, the session's `transcription.model` is used when the router serves that name, else `auto`.
+
+Events from the client:
+
+| Event | Meaning |
+| --- | --- |
+| `session.update` | Optional. Sets the rate (8000 to 48000, default 24000), `transcription.model` and `transcription.language`, and `turn_detection` (`server_vad` with `threshold`, `silence_duration_ms`, `prefix_padding_ms`, or `null` for no VAD). |
+| `input_audio_buffer.append` | Base64 of 16-bit little-endian mono PCM at the session rate. |
+| `input_audio_buffer.commit` | Ends the current turn at once. |
+
+Events from the server: `session.created`, `session.updated`, `input_audio_buffer.speech_started`, `input_audio_buffer.speech_stopped`, `input_audio_buffer.committed`, `conversation.item.input_audio_transcription.completed` (`item_id`, `transcript`), `conversation.item.input_audio_transcription.failed` (`item_id`, `error`), and `error`. A commit with no speech answers an `error` with code `input_audio_buffer_commit_empty`. There are no `delta` events.
+
+VAD rule: frames of 20 ms, by RMS energy. A frame is speech when its RMS is above `max(-45 dBFS, 3x the noise floor)`. The noise floor adapts slowly on frames that are not speech. A turn starts after 100 ms of speech frames. It ends after `silence_duration_ms` of non-speech (default 600). It keeps `prefix_padding_ms` of audio before the start (default 500). A turn is cut at 15 s (60 s with `turn_detection: null`) and the next turn continues without lost audio. A turn with less than 300 ms of speech is dropped with no upstream request.
+
+Each turn is wrapped in a WAV header in memory and sent through the batch routing with `response_format=json`, plus `language` when set. One goroutine transcribes the turns in order. At most 8 turns wait; a full queue drops the oldest pending turn with a `failed` event. A failed turn answers `conversation.item.input_audio_transcription.failed`, not `error`.
 
 ## Response formats per provider
 
@@ -352,7 +374,7 @@ The router overhead is a few tenths of a millisecond plus one extra copy of the 
 
 ## Limits
 
-- Only transcription. There is no `/v1/audio/translations`, no streaming, and no realtime API.
+- Only transcription. There is no `/v1/audio/translations` and no streaming responses. The realtime endpoint is turn-based: it is not a token stream.
 - The router stores the whole upload before it sends the first byte upstream. This adds the upload time to the latency, and it is what makes retries on other accounts possible.
 - One process owns the state. Do not run two routers on the same state file.
 - Changes to `listen`, timeouts, and limits need a restart. The dashboard edits accounts, models, and client keys only.

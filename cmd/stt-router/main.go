@@ -98,6 +98,9 @@ func run(configPath, listen string) error {
 		return err
 	case <-ctx.Done():
 	}
+	// A realtime socket lives until the client closes it, so Shutdown would
+	// wait for every one of them; close them first.
+	srv.CloseRealtime()
 	log.Printf("shutting down; waiting up to %s for requests in flight", shutdownTimeout)
 	sctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()

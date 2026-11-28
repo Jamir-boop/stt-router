@@ -59,8 +59,7 @@ func (s *Server) handleTranscribe(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		entry.LatencyMs = s.now().Sub(start).Milliseconds()
 		s.recordRequest(entry)
-		s.opts.Logger.Printf("transcribe model=%q provider=%q account=%q status=%d attempts=%d latency=%dms bytes=%d",
-			entry.Model, entry.Provider, entry.Account, entry.Status, entry.Attempts, entry.LatencyMs, entry.UploadBytes)
+		s.logLine(entry)
 	}()
 	fail := func(status int, typ, code, msg string) {
 		entry.Status, entry.Error = status, msg

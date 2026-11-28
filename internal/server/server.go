@@ -50,6 +50,11 @@ type Server struct {
 	reqLog     []LogEntry
 	totals     Totals
 
+	rtMu     sync.Mutex
+	rts      map[*rtConn]struct{} // open realtime connections, so Close can end them
+	rtClosed bool
+	rtWG     sync.WaitGroup // realtime handlers, so Close waits for their goroutines
+
 	saveMu sync.Mutex
 	dirty  chan struct{}
 	stop   chan struct{}
@@ -77,6 +82,7 @@ func New(cfg *config.Config, opts Options) (*Server, error) {
 		accounts:   map[string]*account{},
 		clocks:     map[string]float64{},
 		transports: map[string]*http.Transport{},
+		rts:        map[*rtConn]struct{}{},
 		dirty:      make(chan struct{}, 1),
 		stop:       make(chan struct{}),
 		done:       make(chan struct{}),
@@ -95,11 +101,14 @@ func New(cfg *config.Config, opts Options) (*Server, error) {
 	return s, nil
 }
 
-// Close flushes the state file and frees idle connections.
+// Close flushes the state file and frees idle connections. It also closes the
+// open realtime connections, which an http.Server.Shutdown does not touch.
 func (s *Server) Close() error {
 	var err error
 	s.closed.Do(func() {
 		close(s.stop)
+		s.closeRealtime()
+		s.rtWG.Wait()
 		<-s.done
 		err = s.saveState()
 		s.mu.Lock()
@@ -118,6 +127,7 @@ func (s *Server) Handler() http.Handler {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": s.opts.Version})
 	})
 	mux.HandleFunc("POST /v1/audio/transcriptions", s.handleTranscribe)
+	mux.HandleFunc("GET /v1/realtime", s.handleRealtime)
 	mux.HandleFunc("GET /v1/models", s.handleModels)
 	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -138,6 +148,17 @@ func (s *Server) Handler() http.Handler {
 }
 
 func (s *Server) now() time.Time { return s.opts.Now() }
+
+// CloseRealtime closes every open realtime connection. The process shutdown
+// calls it through Close; tests can call it to end a connection on purpose.
+func (s *Server) CloseRealtime() { s.closeRealtime() }
+
+// logLine writes one finished request to the log. Both the batch handler and
+// a realtime turn call it, so their lines look the same.
+func (s *Server) logLine(e LogEntry) {
+	s.opts.Logger.Printf("transcribe model=%q provider=%q account=%q status=%d attempts=%d latency=%dms bytes=%d",
+		e.Model, e.Provider, e.Account, e.Status, e.Attempts, e.LatencyMs, e.UploadBytes)
+}
 
 func (s *Server) handleModels(w http.ResponseWriter, r *http.Request) {
 	cfg := s.cfg.Load()
